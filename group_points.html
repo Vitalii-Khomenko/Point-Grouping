@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Grouping and Exporting Points</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; }
+        h1 { color: #2c3e50; font-size: 1.4em; margin-top: 1em; }
+        .container { background: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 2px 8px #ccc; max-width: 98vw; margin: 1em auto; }
+        input[type="file"] { margin-bottom: 1em; width: 100%; }
+        .group-list { margin: 1em 0; }
+        .group { margin-bottom: 0.5em; font-size: 1em; }
+        .export-btn { margin-top: 1em; width: 100%; font-size: 1.1em; padding: 0.7em; }
+        textarea { width: 100%; height: 120px; margin-top: 1em; font-size: 1em; }
+        label { display: flex; align-items: center; gap: 0.5em; }
+        @media (max-width: 600px) {
+            .container { padding: 0.5em; }
+            h1 { font-size: 1.1em; }
+            .export-btn { font-size: 1em; }
+            textarea { height: 80px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+<h1>Import, group, and export points from multiple files</h1>
+<input type="file" id="fileInput" multiple accept=".txt" style="display:none;">
+<button id="addFilesBtn" type="button">Add files</button>
+<div id="filesContainer"></div>
+<button id="exportBtn" class="export-btn" style="display:none">Export selected groups</button>
+<textarea id="outputArea" readonly style="display:none"></textarea>
+</div>
+<script>
+function parsePoints(text) {
+    // Extract lines with points (robust to leading spaces, variable spaces, semicolons, and numeric names)
+    const lines = text.split(/\r?\n/);
+    // Match: optional spaces, name (word or number), spaces, number (x), separator (; or spaces), number (y), separator (; or spaces), number (z)
+    const pointRegex = /^\s*([^\s;]+)\s*[;\s]+([\d\.]+)\s*[;\s]+([\d\.]+)\s*[;\s]+([\d\.]+)/;
+    return lines.map(line => {
+        const m = line.match(pointRegex);
+        if (m) {
+            return { name: m[1], line: line };
+        }
+        return null;
+    }).filter(Boolean);
+}
+
+function groupByPattern(points) {
+    // Universal regular expression for all group formats
+    // Group: everything up to the first dot or dash, or the whole string if no dot/dash
+    const groupMap = {};
+    points.forEach(pt => {
+        // Remove extra spaces and everything after the first space or semicolon
+        let name = pt.name.trim();
+        name = name.split(';')[0].split(/\s+/)[0];
+        let group = name;
+        if (/^\d{4}$/.test(name)) {
+            // 4-digit numbers: 1xxx, 8xxx, etc.
+            group = name[0] + 'xxx';
+        } else if (/^P\d+/.test(name)) {
+            // P followed by digits: Pxx
+            group = 'Pxx';
+        } else if (/^FP\.[A-Z]\d\./.test(name)) {
+            // FP.N1.169.2, FP.N2.100.1, FP.U1.100.1, etc.: group by first two parts (FP.N1, FP.N2, FP.U1, ...)
+            let m = name.match(/^FP\.([A-Z]\d)/);
+            if (m) {
+                group = 'FP.' + m[1];
+            }
+        } else {
+            // All others: group by first part up to dot or dash
+            let m = name.match(/^([\w-]+)/);
+            if (m) {
+                group = m[1];
+            }
+        }
+        if (!groupMap[group]) groupMap[group] = [];
+        groupMap[group].push(pt);
+    });
+    return groupMap;
+}
+
+
+const fileInput = document.getElementById('fileInput');
+const filesContainer = document.getElementById('filesContainer');
+const exportBtn = document.getElementById('exportBtn');
+const outputArea = document.getElementById('outputArea');
+const addFilesBtn = document.getElementById('addFilesBtn');
+
+let fileGroups = {}; // { filename: { groupKey: [lines] } }
+
+function renderGroups() {
+    filesContainer.innerHTML = '';
+    Object.keys(fileGroups).forEach(filename => {
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'group-list';
+        fileDiv.style.marginBottom = '1.5em';
+        const title = document.createElement('div');
+        title.innerHTML = `<b>File: ${filename}</b>`;
+        fileDiv.appendChild(title);
+        const groups = fileGroups[filename];
+        Object.keys(groups).sort().forEach(key => {
+            const div = document.createElement('div');
+            div.className = 'group';
+            div.innerHTML = `<label><input type="checkbox" data-file="${filename}" data-group="${key}" checked> <b>${key}</b> (${groups[key].length})</label>`;
+            fileDiv.appendChild(div);
+        });
+        filesContainer.appendChild(fileDiv);
+    });
+    if (Object.keys(fileGroups).length > 0) exportBtn.style.display = '';
+}
+
+addFilesBtn.addEventListener('click', () => {
+    fileInput.value = '';
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', async (e) => {
+    outputArea.style.display = 'none';
+    exportBtn.style.display = 'none';
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+        if (fileGroups[file.name]) continue; // skip already loaded files
+        const text = await file.text();
+        const points = parsePoints(text);
+        const groups = groupByPattern(points);
+        fileGroups[file.name] = groups;
+    }
+    renderGroups();
+});
+
+exportBtn.addEventListener('click', () => {
+    // Collect all checked groups from all files
+    const checked = Array.from(filesContainer.querySelectorAll('input[type=checkbox]:checked'));
+    let lines = [];
+    checked.forEach(cb => {
+        const filename = cb.getAttribute('data-file');
+        const group = cb.getAttribute('data-group');
+        if (fileGroups[filename] && fileGroups[filename][group]) {
+            lines = lines.concat(fileGroups[filename][group]);
+        }
+    });
+    // Remove duplicates by point name
+    const seen = new Set();
+    lines = lines.filter(obj => {
+        const name = obj.name;
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+    });
+    // Sort lines by point name (first word in line)
+    lines.sort((a, b) => {
+        const nameA = a.name;
+        const nameB = b.name;
+        return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
+    });
+    // Format output with consistent indentation and columns
+    let maxNameLen = 0, maxX = 0, maxY = 0, maxZ = 0;
+    let parsed = lines.map(obj => {
+        // Use the original line for formatting
+        const m = obj.line.match(/^(\s*)(\S+)(\s+)([\d\.]+)\s*[;\s]+([\d\.]+)\s*[;\s]+([\d\.]+)/);
+        if (m) {
+            const name = m[2];
+            const x = m[4], y = m[5], z = m[6];
+            if (name.length > maxNameLen) maxNameLen = name.length;
+            if (x.length > maxX) maxX = x.length;
+            if (y.length > maxY) maxY = y.length;
+            if (z.length > maxZ) maxZ = z.length;
+            return {
+                orig: obj.line,
+                name: name,
+                x: x,
+                y: y,
+                z: z,
+                lead: m[1] || '',
+            };
+        } else {
+            return { orig: obj.line };
+        }
+    });
+    function getIndent(name) {
+        return '             ';
+    }
+    let formatted = parsed.map(obj => {
+        if (!obj.name) return obj.orig;
+        let indent = getIndent(obj.name);
+        let namePad = ' '.repeat(maxNameLen - obj.name.length) + obj.name;
+        let xPad = ' '.repeat(maxX - obj.x.length) + obj.x;
+        let yPad = ' '.repeat(maxY - obj.y.length) + obj.y;
+        let zPad = ' '.repeat(maxZ - obj.z.length) + obj.z;
+        return indent + namePad + '      ' + xPad + '       ' + yPad + '        ' + zPad;
+    });
+    outputArea.value = formatted.join('\n');
+    outputArea.style.display = '';
+    const blob = new Blob([outputArea.value], {type: 'text/plain'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'exported_points.txt';
+    a.click();
+});
+</script>
+</body>
+</html>
