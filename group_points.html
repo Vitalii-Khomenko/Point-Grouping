@@ -35,12 +35,18 @@
 function parsePoints(text) {
     // Extract lines with points (robust to leading spaces, variable spaces, semicolons, and numeric names)
     const lines = text.split(/\r?\n/);
-    // Match: optional spaces, name (word or number), spaces, number (x), separator (; or spaces), number (y), separator (; or spaces), number (z)
-    const pointRegex = /^\s*([^\s;]+)\s*[;\s]+([\d\.]+)\s*[;\s]+([\d\.]+)\s*[;\s]+([\d\.]+)/;
-    return lines.map(line => {
+    // More flexible regex that handles various coordinate formats including negative numbers
+    const pointRegex = /^\s*([^\s;]+)\s*[;\s]+([-\d\.]+)\s*[;\s]+([-\d\.]+)\s*[;\s]+([-\d\.]+)/;
+    return lines.map((line, index) => {
         const m = line.match(pointRegex);
         if (m) {
-            return { name: m[1], line: line };
+            const [, name, x, y, z] = m;
+            // Validate coordinates are valid numbers
+            if (isNaN(parseFloat(x)) || isNaN(parseFloat(y)) || isNaN(parseFloat(z))) {
+                console.warn(`Invalid coordinates on line ${index + 1}: ${line}`);
+                return null;
+            }
+            return { name: name.trim(), line: line, x: x.trim(), y: y.trim(), z: z.trim() };
         }
         return null;
     }).filter(Boolean);
@@ -61,15 +67,15 @@ function groupByPattern(points) {
         } else if (/^P\d+/.test(name)) {
             // P followed by digits: Pxx
             group = 'Pxx';
-        } else if (/^FP\.[A-Z]\d\./.test(name)) {
+        } else if (/^FP\.[A-Z]\d+\./.test(name)) {
             // FP.N1.169.2, FP.N2.100.1, FP.U1.100.1, etc.: group by first two parts (FP.N1, FP.N2, FP.U1, ...)
-            let m = name.match(/^FP\.([A-Z]\d)/);
+            let m = name.match(/^FP\.([A-Z]\d+)/);
             if (m) {
                 group = 'FP.' + m[1];
             }
         } else {
             // All others: group by first part up to dot or dash
-            let m = name.match(/^([\w-]+)/);
+            let m = name.match(/^([^.\-]+)/);
             if (m) {
                 group = m[1];
             }
@@ -87,22 +93,24 @@ const exportBtn = document.getElementById('exportBtn');
 const outputArea = document.getElementById('outputArea');
 const addFilesBtn = document.getElementById('addFilesBtn');
 
-let fileGroups = {}; // { filename: { groupKey: [lines] } }
+let fileGroups = {}; // { fileKey: { groupKey: [lines] } }
+let fileNames = {}; // { fileKey: fileName } - to track original names
 
 function renderGroups() {
     filesContainer.innerHTML = '';
-    Object.keys(fileGroups).forEach(filename => {
+    Object.keys(fileGroups).forEach(fileKey => {
+        const fileName = fileNames[fileKey];
         const fileDiv = document.createElement('div');
         fileDiv.className = 'group-list';
         fileDiv.style.marginBottom = '1.5em';
         const title = document.createElement('div');
-        title.innerHTML = `<b>File: ${filename}</b>`;
+        title.innerHTML = `<b>File: ${fileName}</b>`;
         fileDiv.appendChild(title);
-        const groups = fileGroups[filename];
+        const groups = fileGroups[fileKey];
         Object.keys(groups).sort().forEach(key => {
             const div = document.createElement('div');
             div.className = 'group';
-            div.innerHTML = `<label><input type="checkbox" data-file="${filename}" data-group="${key}" checked> <b>${key}</b> (${groups[key].length})</label>`;
+            div.innerHTML = `<label><input type="checkbox" data-file="${fileKey}" data-group="${key}" checked> <b>${key}</b> (${groups[key].length})</label>`;
             fileDiv.appendChild(div);
         });
         filesContainer.appendChild(fileDiv);
@@ -119,85 +127,125 @@ fileInput.addEventListener('change', async (e) => {
     outputArea.style.display = 'none';
     exportBtn.style.display = 'none';
     const files = Array.from(e.target.files);
+    
     for (const file of files) {
-        if (fileGroups[file.name]) continue; // skip already loaded files
-        const text = await file.text();
-        const points = parsePoints(text);
-        const groups = groupByPattern(points);
-        fileGroups[file.name] = groups;
+        try {
+            // Better duplicate detection using file size + name
+            const fileKey = `${file.name}-${file.size}`;
+            if (fileGroups[fileKey]) {
+                console.log(`File ${file.name} already loaded, skipping...`);
+                continue;
+            }
+            
+            // Check file size (limit to 10MB to prevent memory issues)
+            if (file.size > 10 * 1024 * 1024) {
+                alert(`File ${file.name} is too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is 10MB.`);
+                continue;
+            }
+            
+            const text = await file.text();
+            if (!text.trim()) {
+                alert(`File ${file.name} is empty.`);
+                continue;
+            }
+            
+            const points = parsePoints(text);
+            if (points.length === 0) {
+                alert(`No valid points found in file ${file.name}.`);
+                continue;
+            }
+            
+            const groups = groupByPattern(points);
+            fileGroups[fileKey] = groups;
+            fileNames[fileKey] = file.name;
+            
+        } catch (error) {
+            console.error(`Error processing file ${file.name}:`, error);
+            alert(`Error reading file ${file.name}: ${error.message}`);
+        }
     }
     renderGroups();
 });
 
 exportBtn.addEventListener('click', () => {
-    // Collect all checked groups from all files
-    const checked = Array.from(filesContainer.querySelectorAll('input[type=checkbox]:checked'));
-    let lines = [];
-    checked.forEach(cb => {
-        const filename = cb.getAttribute('data-file');
-        const group = cb.getAttribute('data-group');
-        if (fileGroups[filename] && fileGroups[filename][group]) {
-            lines = lines.concat(fileGroups[filename][group]);
+    try {
+        // Collect all checked groups from all files
+        const checked = Array.from(filesContainer.querySelectorAll('input[type=checkbox]:checked'));
+        let lines = [];
+        checked.forEach(cb => {
+            const fileKey = cb.getAttribute('data-file');
+            const group = cb.getAttribute('data-group');
+            if (fileGroups[fileKey] && fileGroups[fileKey][group]) {
+                lines = lines.concat(fileGroups[fileKey][group]);
+            }
+        });
+        
+        if (lines.length === 0) {
+            alert('No points selected for export.');
+            return;
         }
-    });
-    // Remove duplicates by point name
-    const seen = new Set();
-    lines = lines.filter(obj => {
-        const name = obj.name;
-        if (seen.has(name)) return false;
-        seen.add(name);
-        return true;
-    });
-    // Sort lines by point name (first word in line)
-    lines.sort((a, b) => {
-        const nameA = a.name;
-        const nameB = b.name;
-        return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
-    });
-    // Format output with consistent indentation and columns
-    let maxNameLen = 0, maxX = 0, maxY = 0, maxZ = 0;
-    let parsed = lines.map(obj => {
-        // Use the original line for formatting
-        const m = obj.line.match(/^(\s*)(\S+)(\s+)([\d\.]+)\s*[;\s]+([\d\.]+)\s*[;\s]+([\d\.]+)/);
-        if (m) {
-            const name = m[2];
-            const x = m[4], y = m[5], z = m[6];
-            if (name.length > maxNameLen) maxNameLen = name.length;
-            if (x.length > maxX) maxX = x.length;
-            if (y.length > maxY) maxY = y.length;
-            if (z.length > maxZ) maxZ = z.length;
-            return {
-                orig: obj.line,
-                name: name,
-                x: x,
-                y: y,
-                z: z,
-                lead: m[1] || '',
-            };
-        } else {
-            return { orig: obj.line };
-        }
-    });
-    function getIndent(name) {
-        return '             ';
+        
+        // Remove duplicates by point name
+        const seen = new Set();
+        lines = lines.filter(obj => {
+            const name = obj.name;
+            if (seen.has(name)) return false;
+            seen.add(name);
+            return true;
+        });
+        
+        // Sort lines by point name (first word in line)
+        lines.sort((a, b) => {
+            const nameA = a.name;
+            const nameB = b.name;
+            return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
+        });
+        
+        // Format output with consistent indentation and columns
+        const formatted = formatOutput(lines);
+        outputArea.value = formatted;
+        outputArea.style.display = '';
+        
+        // Download the file
+        const blob = new Blob([outputArea.value], {type: 'text/plain'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'exported_points.txt';
+        a.click();
+        
+    } catch (error) {
+        console.error('Error during export:', error);
+        alert('Error during export: ' + error.message);
     }
-    let formatted = parsed.map(obj => {
-        if (!obj.name) return obj.orig;
-        let indent = getIndent(obj.name);
-        let namePad = ' '.repeat(maxNameLen - obj.name.length) + obj.name;
-        let xPad = ' '.repeat(maxX - obj.x.length) + obj.x;
-        let yPad = ' '.repeat(maxY - obj.y.length) + obj.y;
-        let zPad = ' '.repeat(maxZ - obj.z.length) + obj.z;
-        return indent + namePad + '      ' + xPad + '       ' + yPad + '        ' + zPad;
-    });
-    outputArea.value = formatted.join('\n');
-    outputArea.style.display = '';
-    const blob = new Blob([outputArea.value], {type: 'text/plain'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'exported_points.txt';
-    a.click();
 });
+
+function formatOutput(lines) {
+    if (lines.length === 0) return '';
+    
+    // Calculate column widths
+    let maxNameLen = 0, maxX = 0, maxY = 0, maxZ = 0;
+    
+    lines.forEach(obj => {
+        maxNameLen = Math.max(maxNameLen, obj.name.length);
+        maxX = Math.max(maxX, obj.x.length);
+        maxY = Math.max(maxY, obj.y.length);
+        maxZ = Math.max(maxZ, obj.z.length);
+    });
+    
+    // Use consistent spacing
+    const INDENT = 13;
+    const COL_SPACING = 7;
+    
+    return lines.map(obj => {
+        const indent = ' '.repeat(INDENT);
+        const namePad = obj.name.padStart(maxNameLen);
+        const xPad = obj.x.padStart(maxX);
+        const yPad = obj.y.padStart(maxY);
+        const zPad = obj.z.padStart(maxZ);
+        
+        return `${indent}${namePad}${' '.repeat(COL_SPACING)}${xPad}${' '.repeat(COL_SPACING)}${yPad}${' '.repeat(COL_SPACING)}${zPad}`;
+    }).join('\n');
+}
 </script>
 </body>
 </html>

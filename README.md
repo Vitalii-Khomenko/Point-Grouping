@@ -1,20 +1,29 @@
 # Geolocation Points Grouping and Export Tool
 
-This web application allows you to import, group, deduplicate, and export geolocation points from multiple text files. It is designed for maximum flexibility and supports a wide variety of point name formats, advanced grouping logic, and user-friendly export options.
+This web application allows you to import, group, deduplicate, and export geolocation points from multiple text files. It is designed for maximum flexibility and supports a wide variety of point name formats, advanced grouping logic, robust error handling, and user-friendly export options.
 
 ## Features
 
 - **Import Multiple Files:**
   - Supports importing any number of `.txt` files at once.
   - Each file is processed independently, and you can add more files at any time.
+  - File size limit: 10MB per file to prevent memory issues.
+  - Improved duplicate file detection using filename + file size.
 
 - **Automatic Grouping:**
   - Points are grouped automatically based on their names using advanced rules:
     - **4-digit numbers** (e.g., `1053`, `8999`): grouped as `1xxx`, `8xxx`, etc.
     - **Names starting with `P` and digits** (e.g., `P91`, `P9123`): grouped as `Pxx`.
-    - **Names like `FP.N1.169.2`, `FP.U1.100.1`**: grouped by the first two parts (e.g., `FP.N1`, `FP.U1`).
+    - **Names like `FP.N1.169.2`, `FP.U1.100.1`, `FP.N12.185.1`**: grouped by the first two parts (e.g., `FP.N1`, `FP.U1`, `FP.N12`).
     - **All other names**: grouped by the first part up to the first dot or dash (e.g., `N1.169.1` → `N1`, `NAME-1234.1` → `NAME`).
   - Handles names of any length, including long alphanumeric names and names with dashes or dots as separators.
+  - Supports multi-digit grouping patterns (e.g., `FP.N12`, `FP.U23`).
+
+- **Enhanced Data Validation:**
+  - Validates coordinate values to ensure they are valid numbers.
+  - Supports negative coordinate values.
+  - Warns about invalid data lines in the browser console.
+  - Handles various coordinate separators (spaces, semicolons, mixed).
 
 - **Per-File Group Selection:**
   - For each imported file, you can select which groups to include in the export.
@@ -24,8 +33,15 @@ This web application allows you to import, group, deduplicate, and export geoloc
   - Only unique point names are exported, even if they appear in multiple files or groups.
 
 - **Consistent Formatting:**
-  - Exported data is aligned in columns for readability.
-  - Handles both space and semicolon as coordinate separators.
+  - Exported data is perfectly aligned in columns for readability.
+  - Consistent indentation (13 spaces) and column spacing (7 spaces).
+  - Automatic column width calculation based on data.
+
+- **Robust Error Handling:**
+  - File size validation (10MB limit).
+  - Empty file detection.
+  - Invalid coordinate detection and logging.
+  - Comprehensive error messages for user feedback.
 
 - **Mobile-Friendly Interface:**
   - The app is fully responsive and works on both desktop and mobile browsers.
@@ -35,8 +51,10 @@ This web application allows you to import, group, deduplicate, and export geoloc
 
 ## Supported Point Name Formats
 - Names can be any combination of letters, digits, dashes, and dots.
+- Coordinates can be positive or negative numbers with decimal points.
 - Examples:
-  - `N1.169.1`, `FP.N1.185.1`, `1053`, `P9123`, `ABCDE-12345`, `X1-Y2.3456`, `ABCDEFGHIJ.1234`, `1234567890`, `A1B2C3D4E5`, etc.
+  - `N1.169.1`, `FP.N1.185.1`, `FP.N12.200.3`, `1053`, `P9123`, `ABCDE-12345`, `X1-Y2.3456`
+  - `ABCDEFGHIJ.1234`, `1234567890`, `A1B2C3D4E5`, `NK-KTL.U1.207.1`, etc.
 - Dashes (`-`) and dots (`.`) are both treated as separators for grouping.
 
 ## How to Use
@@ -49,21 +67,49 @@ This web application allows you to import, group, deduplicate, and export geoloc
 ```
 N1.169.1        127205.2918; 6555500.9387; 29.9638
 FP.N1.185.1     127164.8080; 6555452.2852; 31.6907
+FP.N12.200.3    127200.1234; 6555600.5678; 32.1234
 1053           127244.7726; 6555574.3683; 31.3746
 P9123          127000.0000; 6555000.0000; 30.0000
 ABCDE-12345    127111.1111; 6555111.1111; 31.1111
+NK-KTL.U1.207.1 127094.2090; 6555408.3260; 29.0000
+```
+
+## Example Output
+```
+             1053       127244.7726       6555574.3683        31.3746
+      ABCDE-12345       127111.1111       6555111.1111        31.1111
+      FP.N1.185.1       127164.8080       6555452.2852        31.6907
+     FP.N12.200.3       127200.1234       6555600.5678        32.1234
+        N1.169.1       127205.2918       6555500.9387        29.9638
+NK-KTL.U1.207.1       127094.2090       6555408.3260        29.0000
+            P9123       127000.0000       6555000.0000        30.0000
 ```
 
 ## Grouping Logic Details
 - **4-digit numbers:** grouped as `1xxx`, `8xxx`, `9xxx`, etc.
 - **P followed by digits:** grouped as `Pxx`.
-- **FP.N1.169.2, FP.U1.100.1, etc.:** grouped as `FP.N1`, `FP.U1`, etc.
+- **FP.N1.169.2, FP.U1.100.1, FP.N12.185.1, etc.:** grouped as `FP.N1`, `FP.U1`, `FP.N12`, etc.
 - **All others:** grouped by the first part up to the first dot or dash.
 - Dashes and dots are both treated as separators for grouping.
+
+## Data Validation & Error Handling
+- **File Size Limit:** Maximum 10MB per file to prevent browser memory issues.
+- **Coordinate Validation:** All coordinates must be valid numbers (positive or negative).
+- **Empty File Detection:** Alerts user if uploaded files are empty.
+- **Invalid Data Logging:** Warns about malformed lines in browser console.
+- **Duplicate File Prevention:** Uses filename + file size to detect duplicate uploads.
+
+## Technical Improvements
+- **Enhanced Regex:** Supports negative coordinates and various number formats.
+- **Improved Grouping:** Better pattern matching for complex naming conventions.
+- **Consistent Formatting:** Automatic column alignment with proper spacing.
+- **Error Recovery:** Graceful handling of malformed data without crashing.
+- **Performance:** Optimized for handling large datasets efficiently.
 
 ## Requirements
 - Modern web browser (Chrome, Firefox, Edge, Safari).
 - No installation or server required.
+- JavaScript must be enabled.
 
 ## License
 MIT
