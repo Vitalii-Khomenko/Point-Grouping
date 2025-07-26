@@ -5,30 +5,453 @@
     <title>Grouping and Exporting Points</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; }
-        h1 { color: #2c3e50; font-size: 1.4em; margin-top: 1em; }
-        .container { background: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 2px 8px #ccc; max-width: 98vw; margin: 1em auto; }
+        :root {
+            --bg-color: #f7f7f7;
+            --container-bg: #fff;
+            --text-color: #2c3e50;
+            --shadow-color: #ccc;
+            --border-color: #ddd;
+            --button-bg: #007bff;
+            --button-text: #fff;
+            --input-bg: #fff;
+            --input-border: #ddd;
+        }
+        
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --container-bg: #2d2d2d;
+            --text-color: #e0e0e0;
+            --shadow-color: #000;
+            --border-color: #444;
+            --button-bg: #0066cc;
+            --button-text: #fff;
+            --input-bg: #3d3d3d;
+            --input-border: #555;
+        }
+        
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            background: var(--bg-color); 
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        h1 { color: var(--text-color); font-size: 1.4em; margin-top: 1em; }
+        .container { 
+            background: var(--container-bg); 
+            padding: 1em; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 8px var(--shadow-color); 
+            max-width: 98vw; 
+            margin: 1em auto;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1em;
+        }
+        
+        .theme-toggle {
+            background: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            padding: 0.5em 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.3s ease;
+        }
+        
+        .theme-toggle:hover {
+            opacity: 0.8;
+        }
+        
         input[type="file"] { margin-bottom: 1em; width: 100%; }
+        button {
+            background: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            padding: 0.7em 1.2em;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
         .group-list { margin: 1em 0; }
         .group { margin-bottom: 0.5em; font-size: 1em; }
+        .group label { color: var(--text-color); }
+        .export-controls {
+            margin: 1em 0;
+            padding: 1em;
+            background: var(--container-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8em;
+        }
+        
+        .format-select, .delimiter-select {
+            background: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--input-border);
+            border-radius: 4px;
+            padding: 0.5em;
+            font-size: 0.95em;
+            margin-left: 0.5em;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 2em;
+            text-align: center;
+            margin: 1em 0;
+            background: var(--container-bg);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--button-bg);
+            background: var(--bg-color);
+            transform: translateY(-2px);
+        }
+        
+        .drop-zone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5em;
+        }
+        
+        .drop-zone-icon {
+            font-size: 2em;
+            color: var(--button-bg);
+        }
+        
+        .drop-zone-text {
+            color: var(--text-color);
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        
+        .drop-zone-subtext {
+            color: var(--text-color);
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+        
+        .stats-dashboard {
+            background: var(--container-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1em;
+            margin: 1em 0;
+            display: block;
+        }
+        
+        .stats-header {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--text-color);
+            margin-bottom: 0.8em;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1em;
+        }
+        
+        .stat-card {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.8em;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--button-bg);
+            margin-bottom: 0.2em;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+        
+        .coord-ranges {
+            margin-top: 1em;
+            font-size: 0.9em;
+        }
+        
+        .coord-range {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3em;
+            padding: 0.2em 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .coord-range:last-child {
+            border-bottom: none;
+        }
+        
+        .search-container {
+            margin: 1em 0 0.5em 0;
+            display: block;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 0.6em;
+            border: 1px solid var(--input-border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text-color);
+            font-size: 1em;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: var(--button-bg);
+        }
+        
+        .search-box::placeholder {
+            color: var(--text-color);
+            opacity: 0.6;
+        }
+        
+        .search-controls {
+            display: flex;
+            gap: 0.5em;
+            align-items: center;
+            margin-top: 0.5em;
+            flex-wrap: wrap;
+        }
+        
+        .search-actions {
+            display: flex;
+            gap: 0.5em;
+        }
+        
+        .action-btn {
+            background: var(--button-bg);
+            color: var(--button-text);
+            border: none;
+            padding: 0.4em 0.8em;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: opacity 0.3s ease;
+        }
+        
+        .action-btn:hover {
+            opacity: 0.8;
+        }
+        
+        .action-btn.secondary {
+            background: var(--border-color);
+            color: var(--text-color);
+        }
+        
+        .action-btn:disabled, .search-box:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .search-box:disabled::placeholder {
+            color: var(--text-color);
+            opacity: 0.4;
+        }
+        
+        .search-info {
+            font-size: 0.9em;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-left: auto;
+        }
+        
+        .group.hidden {
+            display: none;
+        }
+        
+        .file-section.all-hidden > .group {
+            display: none;
+        }
+        
+        .file-section.all-hidden {
+            opacity: 0.5;
+        }
+        
         .export-btn { margin-top: 1em; width: 100%; font-size: 1.1em; padding: 0.7em; }
-        textarea { width: 100%; height: 120px; margin-top: 1em; font-size: 1em; }
+        textarea { 
+            width: 100%; 
+            height: 120px; 
+            margin-top: 1em; 
+            font-size: 1em;
+            background: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--input-border);
+            border-radius: 4px;
+            padding: 0.5em;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
         label { display: flex; align-items: center; gap: 0.5em; }
+        
         @media (max-width: 600px) {
             .container { padding: 0.5em; }
             h1 { font-size: 1.1em; }
             .export-btn { font-size: 1em; }
             textarea { height: 80px; }
+            .header-controls {
+                flex-direction: column;
+                gap: 0.5em;
+                align-items: stretch;
+            }
+                         .theme-toggle {
+                 align-self: flex-end;
+             }
+             .export-controls {
+                 padding: 0.8em;
+                 gap: 0.6em;
+             }
+             .format-select, .delimiter-select {
+                 font-size: 0.9em;
+             }
+             .drop-zone {
+                 padding: 1.5em;
+             }
+             .drop-zone-icon {
+                 font-size: 1.5em;
+             }
+             .drop-zone-text {
+                 font-size: 1em;
+             }
+             .stats-grid {
+                 grid-template-columns: 1fr;
+                 gap: 0.8em;
+             }
+             .stat-card {
+                 padding: 0.6em;
+             }
+             .stat-value {
+                 font-size: 1.3em;
+             }
+             .search-controls {
+                 flex-direction: column;
+                 align-items: stretch;
+             }
+             .search-actions {
+                 justify-content: center;
+             }
+             .search-info {
+                 margin-left: 0;
+                 text-align: center;
+             }
         }
     </style>
 </head>
 <body>
 <div class="container">
+<div class="header-controls">
 <h1>Import, group, and export points from multiple files</h1>
+<button id="themeToggle" class="theme-toggle">🌙 Dark</button>
+</div>
 <input type="file" id="fileInput" multiple accept=".txt" style="display:none;">
-<button id="addFilesBtn" type="button">Add files</button>
+<div id="dropZone" class="drop-zone">
+<div class="drop-zone-content">
+<div class="drop-zone-icon">📁</div>
+<div class="drop-zone-text">Drop files here or click to browse</div>
+<div class="drop-zone-subtext">Supports multiple .txt files</div>
+</div>
+</div>
+<div id="statsPanel" class="stats-dashboard">
+<div class="stats-header">
+📊 Data Statistics <span style="font-size: 0.8em; opacity: 0.7;">(updates after loading files)</span>
+</div>
+<div class="stats-grid">
+<div class="stat-card">
+<div class="stat-value" id="totalFiles">0</div>
+<div class="stat-label">Files Loaded</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="totalGroups">0</div>
+<div class="stat-label">Total Groups</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="totalPoints">0</div>
+<div class="stat-label">Total Points</div>
+</div>
+<div class="stat-card">
+<div class="stat-value" id="selectedPoints">0</div>
+<div class="stat-label">Selected Points</div>
+</div>
+</div>
+<div class="coord-ranges">
+<div class="coord-range">
+<span>X Range:</span>
+<span id="xRange">-</span>
+</div>
+<div class="coord-range">
+<span>Y Range:</span>
+<span id="yRange">-</span>
+</div>
+<div class="coord-range">
+<span>Z Range:</span>
+<span id="zRange">-</span>
+</div>
+</div>
+</div>
+<div id="searchContainer" class="search-container">
+<input type="text" id="groupSearch" class="search-box" placeholder="Search groups by name (load files first)..." disabled />
+<div class="search-controls">
+<div class="search-actions">
+<button id="selectAllVisible" class="action-btn" disabled>Select All Visible</button>
+<button id="deselectAllVisible" class="action-btn secondary" disabled>Deselect All Visible</button>
+<button id="clearSearch" class="action-btn secondary" disabled>Clear Search</button>
+</div>
+<div id="searchInfo" class="search-info">Load files to enable search</div>
+</div>
+</div>
 <div id="filesContainer"></div>
-<button id="exportBtn" class="export-btn" style="display:none">Export selected groups</button>
+<div id="exportSection" style="display:none;">
+<div class="export-controls">
+<label for="exportFormat">Export Format:</label>
+<select id="exportFormat" class="format-select">
+<option value="txt">Formatted Text (.txt)</option>
+<option value="csv">CSV (.csv)</option>
+</select>
+<div id="csvOptions" style="display:none; margin-top: 0.5em;">
+<label for="csvDelimiter">CSV Delimiter:</label>
+<select id="csvDelimiter" class="delimiter-select">
+<option value=",">Comma (,)</option>
+<option value=";">Semicolon (;)</option>
+<option value="\t">Tab</option>
+</select>
+<label style="margin-left: 1em;">
+<input type="checkbox" id="csvHeaders" checked> Include Headers
+</label>
+</div>
+</div>
+<button id="exportBtn" class="export-btn">Export selected groups</button>
+</div>
 <textarea id="outputArea" readonly style="display:none"></textarea>
 </div>
 <script>
@@ -36,7 +459,8 @@ function parsePoints(text) {
     // Extract lines with points (robust to leading spaces, variable spaces, semicolons, and numeric names)
     const lines = text.split(/\r?\n/);
     // More flexible regex that handles various coordinate formats including negative numbers
-    const pointRegex = /^\s*([^\s;]+)\s*[;\s]+([-\d\.]+)\s*[;\s]+([-\d\.]+)\s*[;\s]+([-\d\.]+)/;
+    // Supports point names with spaces by using non-greedy matching up to coordinate pattern
+    const pointRegex = /^\s*(.+?)\s+?([-\d\.]+)\s*[;\s]+([-\d\.]+)\s*[;\s]+([-\d\.]+)/;
     return lines.map((line, index) => {
         const m = line.match(pointRegex);
         if (m) {
@@ -53,33 +477,10 @@ function parsePoints(text) {
 }
 
 function groupByPattern(points) {
-    // Universal regular expression for all group formats
-    // Group: everything up to the first dot or dash, or the whole string if no dot/dash
+    // Universal grouping using centralized logic
     const groupMap = {};
     points.forEach(pt => {
-        // Remove extra spaces and everything after the first space or semicolon
-        let name = pt.name.trim();
-        name = name.split(';')[0].split(/\s+/)[0];
-        let group = name;
-        if (/^\d{4}$/.test(name)) {
-            // 4-digit numbers: 1xxx, 8xxx, etc.
-            group = name[0] + 'xxx';
-        } else if (/^P\d+/.test(name)) {
-            // P followed by digits: Pxx
-            group = 'Pxx';
-        } else if (/^FP\.[A-Z]\d+\./.test(name)) {
-            // FP.N1.169.2, FP.N2.100.1, FP.U1.100.1, etc.: group by first two parts (FP.N1, FP.N2, FP.U1, ...)
-            let m = name.match(/^FP\.([A-Z]\d+)/);
-            if (m) {
-                group = 'FP.' + m[1];
-            }
-        } else {
-            // All others: group by first part up to dot or dash
-            let m = name.match(/^([^.\-]+)/);
-            if (m) {
-                group = m[1];
-            }
-        }
+        const group = determineGroupName(pt.name);
         if (!groupMap[group]) groupMap[group] = [];
         groupMap[group].push(pt);
     });
@@ -87,11 +488,62 @@ function groupByPattern(points) {
 }
 
 
-const fileInput = document.getElementById('fileInput');
-const filesContainer = document.getElementById('filesContainer');
-const exportBtn = document.getElementById('exportBtn');
-const outputArea = document.getElementById('outputArea');
-const addFilesBtn = document.getElementById('addFilesBtn');
+// DOM Element References with validation
+function getRequiredElement(id) {
+    const element = document.getElementById(id);
+    if (!element) {
+        throw new Error(`Required DOM element not found: ${id}`);
+    }
+    return element;
+}
+
+// Initialize DOM elements with error checking
+const fileInput = getRequiredElement('fileInput');
+const filesContainer = getRequiredElement('filesContainer');
+const exportSection = getRequiredElement('exportSection');
+const exportBtn = getRequiredElement('exportBtn');
+const exportFormat = getRequiredElement('exportFormat');
+const csvOptions = getRequiredElement('csvOptions');
+const csvDelimiter = getRequiredElement('csvDelimiter');
+const csvHeaders = getRequiredElement('csvHeaders');
+const outputArea = getRequiredElement('outputArea');
+const dropZone = getRequiredElement('dropZone');
+const statsPanel = getRequiredElement('statsPanel');
+const totalFiles = getRequiredElement('totalFiles');
+const totalGroups = getRequiredElement('totalGroups');
+const totalPoints = getRequiredElement('totalPoints');
+const selectedPoints = getRequiredElement('selectedPoints');
+const xRange = getRequiredElement('xRange');
+const yRange = getRequiredElement('yRange');
+const zRange = getRequiredElement('zRange');
+const searchContainer = getRequiredElement('searchContainer');
+const groupSearch = getRequiredElement('groupSearch');
+const selectAllVisible = getRequiredElement('selectAllVisible');
+const deselectAllVisible = getRequiredElement('deselectAllVisible');
+const clearSearch = getRequiredElement('clearSearch');
+const searchInfo = getRequiredElement('searchInfo');
+
+// Configuration Constants
+const CONFIG = {
+    MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB in bytes
+    STATS_UPDATE_THROTTLE: 1000, // ms for stats cache
+    URL_REVOKE_DELAY: 100, // ms delay before revoking URL
+    SEARCH_DEBOUNCE_DELAY: 300, // ms for search input debounce
+    COORDINATE_DECIMAL_PLACES: 2, // decimal places for coordinate display
+    OUTPUT_FORMATTING: {
+        INDENT: 13,
+        COLUMN_SPACING: 7
+    },
+    FILE_EXTENSIONS: {
+        ALLOWED: ['.txt'],
+        TEXT: 'text/plain',
+        CSV: 'text/csv'
+    },
+    CSV: {
+        DEFAULT_DELIMITER: ',',
+        QUOTE_CHAR: '"'
+    }
+};
 
 let fileGroups = {}; // { fileKey: { groupKey: [lines] } }
 let fileNames = {}; // { fileKey: fileName } - to track original names
@@ -101,7 +553,7 @@ function renderGroups() {
     Object.keys(fileGroups).forEach(fileKey => {
         const fileName = fileNames[fileKey];
         const fileDiv = document.createElement('div');
-        fileDiv.className = 'group-list';
+        fileDiv.className = 'group-list file-section';
         fileDiv.style.marginBottom = '1.5em';
         const title = document.createElement('div');
         title.innerHTML = `<b>File: ${fileName}</b>`;
@@ -110,23 +562,251 @@ function renderGroups() {
         Object.keys(groups).sort().forEach(key => {
             const div = document.createElement('div');
             div.className = 'group';
-            div.innerHTML = `<label><input type="checkbox" data-file="${fileKey}" data-group="${key}" checked> <b>${key}</b> (${groups[key].length})</label>`;
+            div.setAttribute('data-group-name', key.toLowerCase());
+            div.innerHTML = `<label><input type="checkbox" data-file="${fileKey}" data-group="${key}" checked onchange="updateStats()"> <b>${key}</b> (${groups[key].length})</label>`;
             fileDiv.appendChild(div);
         });
         filesContainer.appendChild(fileDiv);
     });
-    if (Object.keys(fileGroups).length > 0) exportBtn.style.display = '';
+    if (Object.keys(fileGroups).length > 0) {
+        exportSection.style.display = '';
+        statsPanel.style.display = '';
+        enableSearchFunctionality();
+        applyGroupFilter(); // Apply any existing search filter
+    } else {
+        disableSearchFunctionality();
+    }
+    updateStats();
 }
 
-addFilesBtn.addEventListener('click', () => {
+// Cache for performance optimization
+let statsCache = {
+    fileCount: 0,
+    groupCount: 0,
+    pointCount: 0,
+    coordinateRanges: null,
+    lastUpdate: 0
+};
+
+function updateStats() {
+    const now = Date.now();
+    const fileCount = Object.keys(fileGroups).length;
+    
+         // Update file-level stats only if data changed
+     if (statsCache.fileCount !== fileCount || now - statsCache.lastUpdate > CONFIG.STATS_UPDATE_THROTTLE) {
+        let groupCount = 0;
+        let pointCount = 0;
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        let minZ = Infinity, maxZ = -Infinity;
+        let hasValidCoords = false;
+        
+        // More efficient single-pass calculation
+        Object.values(fileGroups).forEach(groups => {
+            groupCount += Object.keys(groups).length;
+            Object.values(groups).forEach(pointsArray => {
+                pointCount += pointsArray.length;
+                
+                // Process coordinates in batches for better performance
+                pointsArray.forEach(point => {
+                    const x = parseFloat(point.x);
+                    const y = parseFloat(point.y);
+                    const z = parseFloat(point.z);
+                    
+                    if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                        hasValidCoords = true;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                        if (z < minZ) minZ = z;
+                        if (z > maxZ) maxZ = z;
+                    }
+                });
+            });
+        });
+        
+        // Update cache
+        statsCache = {
+            fileCount,
+            groupCount,
+            pointCount,
+            coordinateRanges: hasValidCoords ? { minX, maxX, minY, maxY, minZ, maxZ } : null,
+            lastUpdate: now
+        };
+    }
+    
+    // Count selected points (always recalculate as selection changes frequently)
+    const checkedBoxes = document.querySelectorAll('#filesContainer input[type="checkbox"]:checked');
+    let selectedPointCount = 0;
+    
+    checkedBoxes.forEach(checkbox => {
+        const fileKey = checkbox.getAttribute('data-file');
+        const groupKey = checkbox.getAttribute('data-group');
+        if (fileGroups[fileKey] && fileGroups[fileKey][groupKey]) {
+            selectedPointCount += fileGroups[fileKey][groupKey].length;
+        }
+    });
+    
+    // Update display efficiently
+    if (totalFiles.textContent !== String(statsCache.fileCount)) {
+        totalFiles.textContent = statsCache.fileCount;
+    }
+    if (totalGroups.textContent !== String(statsCache.groupCount)) {
+        totalGroups.textContent = statsCache.groupCount;
+    }
+    if (totalPoints.textContent !== String(statsCache.pointCount)) {
+        totalPoints.textContent = statsCache.pointCount;
+    }
+    selectedPoints.textContent = selectedPointCount;
+    
+    // Update coordinate ranges
+    if (statsCache.coordinateRanges) {
+        const { minX, maxX, minY, maxY, minZ, maxZ } = statsCache.coordinateRanges;
+        xRange.textContent = `${minX.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxX.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}`;
+        yRange.textContent = `${minY.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxY.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}`;
+        zRange.textContent = `${minZ.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxZ.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}`;
+    } else {
+        xRange.textContent = '-';
+        yRange.textContent = '-';
+        zRange.textContent = '-';
+    }
+}
+
+// Group Search and Filter Functions
+function applyGroupFilter() {
+    const searchTerm = groupSearch.value.toLowerCase().trim();
+    const groups = document.querySelectorAll('.group');
+    const fileSections = document.querySelectorAll('.file-section');
+    let visibleCount = 0;
+    let totalCount = groups.length;
+    
+    groups.forEach(group => {
+        const groupName = group.getAttribute('data-group-name');
+        const isVisible = !searchTerm || groupName.includes(searchTerm);
+        
+        if (isVisible) {
+            group.classList.remove('hidden');
+            visibleCount++;
+        } else {
+            group.classList.add('hidden');
+        }
+    });
+    
+    // Update file section visibility
+    fileSections.forEach(section => {
+        const visibleGroups = section.querySelectorAll('.group:not(.hidden)');
+        if (visibleGroups.length === 0) {
+            section.classList.add('all-hidden');
+        } else {
+            section.classList.remove('all-hidden');
+        }
+    });
+    
+    // Update search info
+    if (searchTerm) {
+        searchInfo.textContent = `Showing ${visibleCount} of ${totalCount} groups`;
+    } else {
+        searchInfo.textContent = 'Showing all groups';
+    }
+}
+
+function selectAllVisibleGroups() {
+    const visibleGroups = document.querySelectorAll('.group:not(.hidden) input[type="checkbox"]');
+    visibleGroups.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateStats();
+}
+
+function deselectAllVisibleGroups() {
+    const visibleGroups = document.querySelectorAll('.group:not(.hidden) input[type="checkbox"]');
+    visibleGroups.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateStats();
+}
+
+function clearGroupSearch() {
+    groupSearch.value = '';
+    applyGroupFilter();
+}
+
+function enableSearchFunctionality() {
+    groupSearch.disabled = false;
+    groupSearch.placeholder = "Search groups by name...";
+    selectAllVisible.disabled = false;
+    deselectAllVisible.disabled = false;
+    clearSearch.disabled = false;
+}
+
+function disableSearchFunctionality() {
+    groupSearch.disabled = true;
+    groupSearch.placeholder = "Search groups by name (load files first)...";
+    groupSearch.value = '';
+    selectAllVisible.disabled = true;
+    deselectAllVisible.disabled = true;
+    clearSearch.disabled = true;
+    searchInfo.textContent = 'Load files to enable search';
+}
+
+// Click handler for drop zone
+dropZone.addEventListener('click', () => {
     fileInput.value = '';
     fileInput.click();
 });
 
-fileInput.addEventListener('change', async (e) => {
+// Drag & Drop functionality
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only remove drag-over if we're leaving the dropZone itself, not a child
+    if (!dropZone.contains(e.relatedTarget)) {
+        dropZone.classList.remove('drag-over');
+    }
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+    
+    const files = Array.from(e.dataTransfer.files);
+    const txtFiles = files.filter(file => file.name.toLowerCase().endsWith('.txt'));
+    
+    if (txtFiles.length === 0) {
+        alert('Please drop only .txt files.');
+        return;
+    }
+    
+    if (txtFiles.length !== files.length) {
+        alert(`${files.length - txtFiles.length} non-.txt file(s) were ignored.`);
+    }
+    
+    // Process the dropped files
+    processFiles(txtFiles);
+});
+
+// Prevent default drag behaviors on the entire document
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    document.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+});
+
+// Function to process files (extracted from fileInput change handler)
+async function processFiles(files) {
     outputArea.style.display = 'none';
-    exportBtn.style.display = 'none';
-    const files = Array.from(e.target.files);
+    exportSection.style.display = 'none';
+    statsPanel.style.display = 'none';
+    disableSearchFunctionality();
     
     for (const file of files) {
         try {
@@ -137,40 +817,68 @@ fileInput.addEventListener('change', async (e) => {
                 continue;
             }
             
-            // Check file size (limit to 10MB to prevent memory issues)
-            if (file.size > 10 * 1024 * 1024) {
-                alert(`File ${file.name} is too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is 10MB.`);
+            // Check file size (limit to prevent memory issues)
+            if (file.size > CONFIG.MAX_FILE_SIZE) {
+                const maxSizeMB = CONFIG.MAX_FILE_SIZE / (1024 * 1024);
+                alert(`File ${file.name} is too large (${Math.round(file.size / 1024 / 1024)}MB). Maximum size is ${maxSizeMB}MB.`);
                 continue;
             }
             
-            const text = await file.text();
+            let text;
+            try {
+                text = await file.text();
+            } catch (readError) {
+                console.error(`Error reading file ${file.name}:`, readError);
+                alert(`Cannot read file ${file.name}. Please check if the file is corrupted or in use.`);
+                continue;
+            }
+            
             if (!text.trim()) {
                 alert(`File ${file.name} is empty.`);
                 continue;
             }
             
-            const points = parsePoints(text);
+            let points;
+            try {
+                points = parsePoints(text);
+            } catch (parseError) {
+                console.error(`Error parsing file ${file.name}:`, parseError);
+                alert(`Error parsing file ${file.name}. Please check the file format.`);
+                continue;
+            }
+            
             if (points.length === 0) {
                 alert(`No valid points found in file ${file.name}.`);
                 continue;
             }
             
-            const groups = groupByPattern(points);
-            fileGroups[fileKey] = groups;
-            fileNames[fileKey] = file.name;
+            try {
+                const groups = groupByPattern(points);
+                fileGroups[fileKey] = groups;
+                fileNames[fileKey] = file.name;
+            } catch (groupError) {
+                console.error(`Error grouping points in file ${file.name}:`, groupError);
+                alert(`Error processing groups in file ${file.name}.`);
+                continue;
+            }
             
         } catch (error) {
-            console.error(`Error processing file ${file.name}:`, error);
-            alert(`Error reading file ${file.name}: ${error.message}`);
+            console.error(`Unexpected error processing file ${file.name}:`, error);
+            alert(`Unexpected error with file ${file.name}: ${error.message}`);
         }
     }
     renderGroups();
+}
+
+fileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    await processFiles(files);
 });
 
 exportBtn.addEventListener('click', () => {
     try {
         // Collect all checked groups from all files
-        const checked = Array.from(filesContainer.querySelectorAll('input[type=checkbox]:checked'));
+        const checked = Array.from(filesContainer.querySelectorAll('input[type="checkbox"]:checked'));
         let lines = [];
         checked.forEach(cb => {
             const fileKey = cb.getAttribute('data-file');
@@ -201,17 +909,26 @@ exportBtn.addEventListener('click', () => {
             return nameA.localeCompare(nameB, undefined, {numeric: true, sensitivity: 'base'});
         });
         
-        // Format output with consistent indentation and columns
-        const formatted = formatOutput(lines);
-        outputArea.value = formatted;
+        // Format output based on selected format
+        const format = exportFormat.value;
+        let content, filename, mimeType;
+        
+        if (format === 'csv') {
+            content = formatCSV(lines);
+            filename = 'exported_points.csv';
+            mimeType = 'text/csv';
+        } else {
+            content = formatOutput(lines);
+            filename = 'exported_points.txt';
+            mimeType = 'text/plain';
+        }
+        
+        // Show formatted output in textarea
+        outputArea.value = content;
         outputArea.style.display = '';
         
         // Download the file
-        const blob = new Blob([outputArea.value], {type: 'text/plain'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'exported_points.txt';
-        a.click();
+        downloadFile(content, filename, mimeType);
         
     } catch (error) {
         console.error('Error during export:', error);
@@ -246,6 +963,165 @@ function formatOutput(lines) {
         return `${indent}${namePad}${' '.repeat(COL_SPACING)}${xPad}${' '.repeat(COL_SPACING)}${yPad}${' '.repeat(COL_SPACING)}${zPad}`;
     }).join('\n');
 }
+
+// CSV Export Functions
+function formatCSV(lines) {
+    const delimiter = csvDelimiter.value === '\t' ? '\t' : csvDelimiter.value;
+    const includeHeaders = csvHeaders.checked;
+    
+    let csvContent = '';
+    
+    // Add headers if requested
+    if (includeHeaders) {
+        csvContent += ['Point Name', 'X Coordinate', 'Y Coordinate', 'Z Coordinate', 'Group'].join(delimiter) + '\n';
+    }
+    
+    // Add data rows
+    lines.forEach(obj => {
+        const group = getPointGroup(obj.name);
+        const row = [
+            `${CONFIG.CSV.QUOTE_CHAR}${obj.name}${CONFIG.CSV.QUOTE_CHAR}`, // Quote point names to handle special characters
+            obj.x,
+            obj.y, 
+            obj.z,
+            `${CONFIG.CSV.QUOTE_CHAR}${group}${CONFIG.CSV.QUOTE_CHAR}`
+        ];
+        csvContent += row.join(delimiter) + '\n';
+    });
+    
+    return csvContent;
+}
+
+// Centralized grouping logic to avoid duplication
+function determineGroupName(pointName) {
+    let name = pointName.trim();
+    name = name.split(';')[0].split(/\s+/)[0];
+    
+    if (/^\d{4}$/.test(name)) {
+        // 4-digit numbers: 1xxx, 8xxx, etc.
+        return name[0] + 'xxx';
+    } else if (/^P\d+/.test(name)) {
+        // P followed by digits: Pxx
+        return 'Pxx';
+    } else if (/^FP\.[A-Z]\d+\./.test(name)) {
+        // FP.N1.169.2, FP.N2.100.1, FP.U1.100.1, etc.: group by first two parts
+        let m = name.match(/^FP\.([A-Z]\d+)/);
+        if (m) {
+            return 'FP.' + m[1];
+        }
+    } else {
+        // All others: group by first part up to dot or dash
+        let m = name.match(/^([^.\-]+)/);
+        if (m) {
+            return m[1];
+        }
+    }
+    return name;
+}
+
+// Wrapper for backward compatibility
+function getPointGroup(pointName) {
+    return determineGroupName(pointName);
+}
+
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], {type: mimeType});
+    const a = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    
+    // Add to DOM, click, then remove
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    // Clean up memory - revoke URL after a short delay to ensure download starts
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+    }, CONFIG.URL_REVOKE_DELAY);
+}
+
+// Theme Toggle Functionality
+const themeToggle = document.getElementById('themeToggle');
+
+function initTheme() {
+    // Load saved theme or default to light
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    applyTheme(savedTheme);
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const isDark = theme === 'dark';
+    themeToggle.textContent = isDark ? '☀️ Light' : '🌙 Dark';
+    localStorage.setItem('theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+}
+
+// Initialize theme on page load
+initTheme();
+
+// Add event listener for theme toggle
+themeToggle.addEventListener('click', toggleTheme);
+
+// Export Format Control
+exportFormat.addEventListener('change', function() {
+    if (this.value === 'csv') {
+        csvOptions.style.display = 'block';
+    } else {
+        csvOptions.style.display = 'none';
+    }
+});
+
+// Initialize export format options
+exportFormat.dispatchEvent(new Event('change'));
+
+// Group Search Event Handlers with debounce
+let searchTimeout;
+groupSearch.addEventListener('input', function() {
+    if (!this.disabled) {
+        // Clear previous timeout
+        clearTimeout(searchTimeout);
+        
+        // Set new timeout for debounced search
+        searchTimeout = setTimeout(() => {
+            applyGroupFilter();
+        }, CONFIG.SEARCH_DEBOUNCE_DELAY);
+    }
+});
+
+selectAllVisible.addEventListener('click', function() {
+    if (!this.disabled) {
+        selectAllVisibleGroups();
+    }
+});
+
+deselectAllVisible.addEventListener('click', function() {
+    if (!this.disabled) {
+        deselectAllVisibleGroups();
+    }
+});
+
+clearSearch.addEventListener('click', function() {
+    if (!this.disabled) {
+        clearGroupSearch();
+    }
+});
+
+// Keyboard shortcuts for search
+groupSearch.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !this.disabled) {
+        clearGroupSearch();
+    }
+});
 </script>
 </body>
 </html>
