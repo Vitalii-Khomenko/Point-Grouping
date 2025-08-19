@@ -458,19 +458,21 @@
 function parsePoints(text) {
     // Extract lines with points (robust to leading spaces, variable spaces, semicolons, and numeric names)
     const lines = text.split(/\r?\n/);
-    // More flexible regex that handles various coordinate formats including negative numbers
-    // Supports point names with spaces by using non-greedy matching up to coordinate pattern
-    const pointRegex = /^\s*(.+?)\s+?([-\d\.]+)\s*[;\s]+([-\d\.]+)\s*[;\s]+([-\d\.]+)/;
+    // Regex now allows optional Z (height). X and Y are required. Supports negative/decimal numbers.
+    // Captures: name, x, y, [z]
+    const pointRegex = /^\s*(.+?)\s+([\-\.\d]+)\s*[;\s]+([\-\.\d]+)(?:\s*[;\s]+([\-\.\d]+))?/;
     return lines.map((line, index) => {
         const m = line.match(pointRegex);
         if (m) {
             const [, name, x, y, z] = m;
-            // Validate coordinates are valid numbers
-            if (isNaN(parseFloat(x)) || isNaN(parseFloat(y)) || isNaN(parseFloat(z))) {
-                console.warn(`Invalid coordinates on line ${index + 1}: ${line}`);
+            // Validate required coordinates (X and Y) are valid numbers
+            if (isNaN(parseFloat(x)) || isNaN(parseFloat(y))) {
+                console.warn(`Invalid X/Y coordinates on line ${index + 1}: ${line}`);
                 return null;
             }
-            return { name: name.trim(), line: line, x: x.trim(), y: y.trim(), z: z.trim() };
+            // Z may be missing; keep as empty string when absent
+            const zVal = (typeof z === 'undefined' || z === null) ? '' : z.trim();
+            return { name: name.trim(), line: line, x: x.trim(), y: y.trim(), z: zVal };
         }
         return null;
     }).filter(Boolean);
@@ -593,13 +595,13 @@ function updateStats() {
     const fileCount = Object.keys(fileGroups).length;
     
          // Update file-level stats only if data changed
-     if (statsCache.fileCount !== fileCount || now - statsCache.lastUpdate > CONFIG.STATS_UPDATE_THROTTLE) {
+    if (statsCache.fileCount !== fileCount || now - statsCache.lastUpdate > CONFIG.STATS_UPDATE_THROTTLE) {
         let groupCount = 0;
         let pointCount = 0;
         let minX = Infinity, maxX = -Infinity;
         let minY = Infinity, maxY = -Infinity;
         let minZ = Infinity, maxZ = -Infinity;
-        let hasValidCoords = false;
+        let hasValidX = false, hasValidY = false, hasValidZ = false;
         
         // More efficient single-pass calculation
         Object.values(fileGroups).forEach(groups => {
@@ -611,14 +613,20 @@ function updateStats() {
                 pointsArray.forEach(point => {
                     const x = parseFloat(point.x);
                     const y = parseFloat(point.y);
-                    const z = parseFloat(point.z);
-                    
-                    if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-                        hasValidCoords = true;
+                    const z = (point.z === '' ? NaN : parseFloat(point.z));
+
+                    if (!isNaN(x)) {
+                        hasValidX = true;
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
+                    }
+                    if (!isNaN(y)) {
+                        hasValidY = true;
                         if (y < minY) minY = y;
                         if (y > maxY) maxY = y;
+                    }
+                    if (!isNaN(z)) {
+                        hasValidZ = true;
                         if (z < minZ) minZ = z;
                         if (z > maxZ) maxZ = z;
                     }
@@ -626,12 +634,19 @@ function updateStats() {
             });
         });
         
-        // Update cache
+        // Update cache (store null for axes without valid values)
         statsCache = {
             fileCount,
             groupCount,
             pointCount,
-            coordinateRanges: hasValidCoords ? { minX, maxX, minY, maxY, minZ, maxZ } : null,
+            coordinateRanges: {
+                minX: hasValidX ? minX : null,
+                maxX: hasValidX ? maxX : null,
+                minY: hasValidY ? minY : null,
+                maxY: hasValidY ? maxY : null,
+                minZ: hasValidZ ? minZ : null,
+                maxZ: hasValidZ ? maxZ : null
+            },
             lastUpdate: now
         };
     }
@@ -663,9 +678,9 @@ function updateStats() {
     // Update coordinate ranges
     if (statsCache.coordinateRanges) {
         const { minX, maxX, minY, maxY, minZ, maxZ } = statsCache.coordinateRanges;
-        xRange.textContent = `${minX.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxX.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}`;
-        yRange.textContent = `${minY.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxY.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}`;
-        zRange.textContent = `${minZ.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxZ.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}`;
+        xRange.textContent = (minX !== null && maxX !== null) ? `${minX.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxX.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}` : '-';
+        yRange.textContent = (minY !== null && maxY !== null) ? `${minY.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxY.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}` : '-';
+        zRange.textContent = (minZ !== null && maxZ !== null) ? `${minZ.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)} → ${maxZ.toFixed(CONFIG.COORDINATE_DECIMAL_PLACES)}` : '-';
     } else {
         xRange.textContent = '-';
         yRange.textContent = '-';
